@@ -1,0 +1,21 @@
+# Environment
+.env
+
+# Binary hasil build -- WAJIB diawali garis miring agar folder internal/server/ tidak ikut terabaikan
+/server
+/server.exe
+/main
+/main.exe
+/app
+/app.exe
+
+# Artefak test & coverage
+*.out
+*.test
+coverage.html
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

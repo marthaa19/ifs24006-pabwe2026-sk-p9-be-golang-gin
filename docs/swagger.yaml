@@ -1,0 +1,396 @@
+swagger: '2.0'
+info:
+  title: Delcom Blog API
+  description: REST API Delcom Blog - platform artikel multi-tier dengan AI Generator
+    terintegrasi Search Engine. Respons selalu berbentuk {status, message, data?}.
+  version: '1.0'
+host: localhost:8081
+basePath: /
+schemes:
+- http
+- https
+securityDefinitions:
+  BearerAuth:
+    type: apiKey
+    name: Authorization
+    in: header
+    description: 'Isi dengan: Bearer <token>'
+paths:
+  /api/public/categories:
+    get:
+      summary: Daftar kategori artikel
+      tags:
+      - Publik
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: Berhasil
+  /api/public/posts:
+    get:
+      summary: Daftar artikel terbit (cari & filter)
+      tags:
+      - Publik
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: Berhasil
+      parameters:
+      - name: q
+        in: query
+        type: string
+        description: Kata kunci judul/ringkasan/isi
+      - name: category
+        in: query
+        type: string
+  /api/public/posts/{slug}:
+    get:
+      summary: Detail artikel terbit berdasarkan slug
+      tags:
+      - Publik
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: Berhasil
+        '404':
+          description: Artikel tidak ditemukan
+      parameters:
+      - name: slug
+        in: path
+        type: string
+        required: true
+  /api/auth/register:
+    post:
+      summary: Registrasi penulis baru
+      tags:
+      - Auth
+      produces:
+      - application/json
+      responses:
+        '201':
+          description: Terdaftar
+        '400':
+          description: Data tidak valid
+        '409':
+          description: Username/email sudah dipakai
+      consumes:
+      - application/json
+      parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/RegisterRequest'
+  /api/auth/login:
+    post:
+      summary: Login & terbitkan token JWT
+      tags:
+      - Auth
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: Berhasil
+        '401':
+          description: Kredensial salah
+      consumes:
+      - application/json
+      parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/LoginRequest'
+  /api/auth/logout:
+    post:
+      summary: Logout
+      tags:
+      - Auth
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: Berhasil
+        '401':
+          description: Belum login / token tidak valid
+      security: &id001
+      - BearerAuth: []
+  /api/auth/profile:
+    get:
+      summary: Profil pengguna login
+      tags:
+      - Auth
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: Berhasil
+        '401':
+          description: Belum login / token tidak valid
+      security: *id001
+    put:
+      summary: Perbarui profil
+      tags:
+      - Auth
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: Berhasil
+        '401':
+          description: Belum login / token tidak valid
+      security: *id001
+      consumes:
+      - application/json
+      parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/UpdateProfileRequest'
+  /api/posts:
+    get:
+      summary: Artikel milik penulis (terbit & draf)
+      tags:
+      - Penulis
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: Berhasil
+        '401':
+          description: Belum login / token tidak valid
+      security: *id001
+    post:
+      summary: Buat artikel (slug unik & reading time otomatis)
+      tags:
+      - Penulis
+      produces:
+      - application/json
+      responses:
+        '201':
+          description: Dibuat
+        '400':
+          description: Data tidak valid
+        '422':
+          description: Kategori tidak valid
+        '401':
+          description: Belum login / token tidak valid
+      security: *id001
+      consumes:
+      - application/json
+      parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/PostRequest'
+  /api/posts/stats:
+    get:
+      summary: Tiga kartu statistik penulis
+      tags:
+      - Penulis
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: Berhasil
+        '401':
+          description: Belum login / token tidak valid
+      security: *id001
+  /api/posts/ai-generate:
+    post:
+      summary: Draf artikel AI + Search Engine
+      tags:
+      - Penulis
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: Draf dibuat
+        '400':
+          description: Topik kosong
+        '502':
+          description: Layanan AI bermasalah
+        '401':
+          description: Belum login / token tidak valid
+      security: *id001
+      consumes:
+      - application/json
+      parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/AIGenerateRequest'
+  /api/posts/{id}:
+    get:
+      summary: Detail artikel milik penulis
+      tags:
+      - Penulis
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: Berhasil
+        '404':
+          description: Tidak ditemukan
+        '401':
+          description: Belum login / token tidak valid
+      security: *id001
+      parameters:
+      - &id002
+        name: id
+        in: path
+        type: integer
+        required: true
+    put:
+      summary: Perbarui artikel
+      tags:
+      - Penulis
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: Berhasil
+        '401':
+          description: Belum login / token tidak valid
+      security: *id001
+      consumes:
+      - application/json
+      parameters:
+      - *id002
+      - name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/PostRequest'
+    delete:
+      summary: Hapus artikel
+      tags:
+      - Penulis
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: Berhasil
+        '401':
+          description: Belum login / token tidak valid
+      security: *id001
+      parameters:
+      - *id002
+  /api/posts/{id}/toggle-publish:
+    patch:
+      summary: Ubah status Draf <-> Terbit
+      tags:
+      - Penulis
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: Berhasil
+        '401':
+          description: Belum login / token tidak valid
+      security: *id001
+      parameters:
+      - *id002
+  /api/admin/users:
+    get:
+      summary: Direktori pengguna + total artikel
+      tags:
+      - Admin
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: Berhasil
+        '401':
+          description: Belum login / token tidak valid
+        '403':
+          description: Hanya untuk role admin
+      security: *id001
+  /api/admin/posts:
+    get:
+      summary: Seluruh artikel semua penulis
+      tags:
+      - Admin
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: Berhasil
+        '401':
+          description: Belum login / token tidak valid
+        '403':
+          description: Hanya untuk role admin
+      security: *id001
+  /api/admin/users/{id}/posts:
+    get:
+      summary: Artikel milik satu pengguna
+      tags:
+      - Admin
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: Berhasil
+        '401':
+          description: Belum login / token tidak valid
+        '403':
+          description: Hanya untuk role admin
+      security: *id001
+      parameters:
+      - *id002
+definitions:
+  RegisterRequest:
+    type: object
+    properties:
+      username: &id003
+        type: string
+      email: *id003
+      password: *id003
+    required:
+    - username
+    - email
+    - password
+  LoginRequest:
+    type: object
+    properties:
+      username: *id003
+      password: *id003
+    required:
+    - username
+    - password
+  UpdateProfileRequest:
+    type: object
+    properties:
+      username: *id003
+      email: *id003
+      password: *id003
+    required:
+    - username
+    - email
+  PostRequest:
+    type: object
+    properties:
+      title: *id003
+      category: *id003
+      excerpt: *id003
+      content: *id003
+      cover_image_path: *id003
+      is_published:
+        type: boolean
+    required:
+    - title
+    - content
+  AIGenerateRequest:
+    type: object
+    properties:
+      topic: *id003
+      category: *id003
+      include_web_search:
+        type: boolean
+    required:
+    - topic
