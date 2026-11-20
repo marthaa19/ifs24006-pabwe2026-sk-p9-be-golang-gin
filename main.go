@@ -14,6 +14,11 @@ func main() {
 	cfg := config.LoadConfig()
 
 	db, err := database.Setup(cfg)
+	if err != nil && cfg.DBConnection != "sqlite" {
+		log.Printf("PostgreSQL tidak bisa dipakai (%v), beralih ke SQLite memori", err)
+		cfg.DBConnection = "sqlite"
+		db, err = database.Setup(cfg)
+	}
 	if err != nil {
 		log.Fatalf("gagal menyiapkan database: %v", err)
 	}
