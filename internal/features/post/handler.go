@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"app/internal/middleware"
 	"app/internal/response"
@@ -21,6 +22,8 @@ func fromError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrNotFound):
 		response.Fail(c, http.StatusNotFound, err.Error())
+	case errors.Is(err, ErrForbidden):
+		response.Fail(c, http.StatusForbidden, err.Error())
 	case errors.Is(err, ErrInvalidCategory):
 		response.Fail(c, http.StatusUnprocessableEntity, err.Error())
 	default:
@@ -116,8 +119,18 @@ func (h *Handler) Update(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var req PostRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	cur, err := h.svc.MyDetail(uid(c), id) // 404 bila tidak ada, 403 bila milik orang lain
+	if err != nil {
+		fromError(c, err)
+		return
+	}
+	var in UpdateRequest
+	if err := c.ShouldBindJSON(&in); err != nil {
+		response.Fail(c, http.StatusBadRequest, "Data artikel tidak valid")
+		return
+	}
+	req := mergeUpdate(cur, in)
+	if strings.TrimSpace(req.Title) == "" || strings.TrimSpace(req.Content) == "" {
 		response.Fail(c, http.StatusBadRequest, "Judul dan konten artikel wajib diisi")
 		return
 	}
@@ -127,6 +140,36 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 	response.Success(c, http.StatusOK, "Artikel berhasil diperbarui", p)
+}
+
+// mergeUpdate menimpa artikel saat ini hanya dengan kolom yang dikirim klien.
+func mergeUpdate(cur *PostResponse, in UpdateRequest) PostRequest {
+	req := PostRequest{}
+	if cur != nil {
+		req = PostRequest{
+			Title: cur.Title, Category: cur.Category, Excerpt: cur.Excerpt, Content: cur.Content,
+			CoverImagePath: cur.CoverImagePath, IsPublished: cur.IsPublished,
+		}
+	}
+	if in.Title != nil {
+		req.Title = *in.Title
+	}
+	if in.Category != nil {
+		req.Category = *in.Category
+	}
+	if in.Excerpt != nil {
+		req.Excerpt = *in.Excerpt
+	}
+	if in.Content != nil {
+		req.Content = *in.Content
+	}
+	if in.CoverImagePath != nil {
+		req.CoverImagePath = *in.CoverImagePath
+	}
+	if in.IsPublished != nil {
+		req.IsPublished = *in.IsPublished
+	}
+	return req
 }
 
 func (h *Handler) Toggle(c *gin.Context) {

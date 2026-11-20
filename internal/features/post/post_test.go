@@ -107,7 +107,7 @@ func TestAlurPenulis(t *testing.T) {
 	assert.Empty(t, other)
 
 	st, _ := svc.Stats(1)
-	assert.Equal(t, Stats{Total: 4, TotalPublished: 1, TotalDraft: 3}, *st)
+	assert.Equal(t, Stats{Total: 4, TotalPublished: 1, TotalDraft: 3, TotalArticles: 4, TotalSelesai: 1, BelumSelesai: 3}, *st)
 
 	// update: judul berubah -> slug baru; judul sama -> slug tetap
 	u, err := svc.Update(1, b.ID, req("Judul Baru", true))
@@ -121,6 +121,8 @@ func TestAlurPenulis(t *testing.T) {
 	_, err = svc.Update(1, b.ID, PostRequest{Title: "x", Content: "x", Category: "Olahraga"})
 	assert.ErrorIs(t, err, ErrInvalidCategory)
 	_, err = svc.Update(2, b.ID, req("Curi", true)) // bukan pemilik
+	assert.ErrorIs(t, err, ErrForbidden)
+	_, err = svc.Update(1, 9999, req("Hantu", true)) // tidak ada
 	assert.ErrorIs(t, err, ErrNotFound)
 
 	// toggle
@@ -130,14 +132,15 @@ func TestAlurPenulis(t *testing.T) {
 	tg, _ = svc.TogglePublish(1, b.ID)
 	assert.False(t, tg.IsPublished)
 	_, err = svc.TogglePublish(2, b.ID)
-	assert.ErrorIs(t, err, ErrNotFound)
+	assert.ErrorIs(t, err, ErrForbidden)
 
 	// detail milik sendiri
 	my, err := svc.MyDetail(1, a.ID)
 	assert.NoError(t, err)
 	assert.Equal(t, a.ID, my.ID)
 	_, err = svc.MyDetail(2, a.ID)
-	assert.ErrorIs(t, err, ErrNotFound)
+	assert.ErrorIs(t, err, ErrForbidden)
+	assert.NotNil(t, my.UserID)
 
 	// hapus
 	assert.NoError(t, svc.Delete(1, c.ID))
@@ -178,8 +181,12 @@ func TestAlurPublikDanAdmin(t *testing.T) {
 	up, err := svc.AdminUserPosts(2)
 	assert.NoError(t, err)
 	assert.Len(t, up, 2)
-	_, err = svc.AdminUserPosts(99)
-	assert.ErrorIs(t, err, ErrNotFound)
+	none2, err := svc.AdminUserPosts(99) // pengguna tidak ada -> daftar kosong, bukan error
+	assert.NoError(t, err)
+	assert.Empty(t, none2)
+	assert.NotNil(t, up[0].UserID)
+	assert.Nil(t, all[0].UserID) // respons publik tanpa user_id
+	assert.NotEmpty(t, all[0].AuthorName)
 }
 
 // ---------- repository: kegagalan database ----------
@@ -224,6 +231,24 @@ func TestRepositoryDatabaseRusak(t *testing.T) {
 	assert.Error(t, err)
 	_, err = repo.UserExists(1)
 	assert.Error(t, err)
+	_, err = repo.PostExists(1)
+	assert.Error(t, err)
+}
+
+func TestPostExists(t *testing.T) {
+	repo := NewRepository(newDB(t))
+	assert.NoError(t, repo.Create(&Post{UserID: 1, Title: "a", Slug: "a"}))
+	ok, err := repo.PostExists(1)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+	ok, _ = repo.PostExists(9999)
+	assert.False(t, ok)
+}
+
+func TestOwnedKesalahanPostExists(t *testing.T) {
+	f := &fakeRepo{errs: map[string]error{"FindOwned": ErrNotFound, "PostExists": errBoom}}
+	_, err := NewService(f, clock).MyDetail(1, 1)
+	assert.ErrorIs(t, err, errBoom)
 }
 
 // ---------- service: kegagalan repository (fake) ----------
@@ -249,6 +274,7 @@ func (f *fakeRepo) SlugExists(s string, _ uint) (bool, error) { return f.taken[s
 func (f *fakeRepo) Count(uint) (int64, int64, error)          { return 0, 0, f.e("Count") }
 func (f *fakeRepo) ListUsers() ([]UserSummary, error)         { return nil, f.e("ListUsers") }
 func (f *fakeRepo) UserExists(uint) (bool, error)             { return f.exist, f.e("UserExists") }
+func (f *fakeRepo) PostExists(uint) (bool, error)             { return f.exist, f.e("PostExists") }
 
 func fk(errName string, post *Post) Service {
 	f := &fakeRepo{errs: map[string]error{}, post: post}
@@ -295,8 +321,6 @@ func TestServiceKesalahanRepo(t *testing.T) {
 	_, err = fk("ListUsers", nil).AdminUsers()
 	assert.ErrorIs(t, err, errBoom)
 	_, err = fk("ListAll", nil).AdminPosts()
-	assert.ErrorIs(t, err, errBoom)
-	_, err = fk("UserExists", nil).AdminUserPosts(1)
 	assert.ErrorIs(t, err, errBoom)
 	_, err = NewService(&fakeRepo{errs: map[string]error{"ListByUser": errBoom}, exist: true}, clock).AdminUserPosts(1)
 	assert.ErrorIs(t, err, errBoom)
@@ -400,7 +424,7 @@ func TestHandlerValidasiDanIDSalah(t *testing.T) {
 
 func TestHandlerPemetaanError(t *testing.T) {
 	body := gin.H{"title": "a", "content": "b"}
-	for err, want := range map[error]int{ErrNotFound: 404, ErrInvalidCategory: 422, errBoom: 500} {
+	for err, want := range map[error]int{ErrNotFound: 404, ErrForbidden: 403, ErrInvalidCategory: 422, errBoom: 500} {
 		r := router(fakeSvc{err: err})
 		for _, tc := range []struct{ m, p string }{
 			{"GET", "/public"}, {"GET", "/public/x"}, {"GET", "/posts"}, {"GET", "/posts/stats"},
@@ -411,4 +435,30 @@ func TestHandlerPemetaanError(t *testing.T) {
 			assert.Equal(t, want, code, tc.m+" "+tc.p)
 		}
 	}
+}
+
+func TestHandlerUpdateParsial(t *testing.T) {
+	svc, _, _ := newSvc(t)
+	r := router(svc)
+	code, _ := call(r, "POST", "/posts", gin.H{"title": "Awal", "content": "isi awal", "category": "Umum"})
+	assert.Equal(t, 201, code)
+
+	code, b := call(r, "PUT", "/posts/1", gin.H{"title": "Judul Baru"}) // hanya judul
+	assert.Equal(t, 200, code)
+	assert.Equal(t, "success", b.Status)
+	got, _ := svc.MyDetail(1, 1)
+	assert.Equal(t, "Judul Baru", got.Title)
+	assert.Equal(t, "isi awal", got.Content)
+
+	code, _ = call(r, "PUT", "/posts/1", gin.H{"content": "  "}) // kosong -> ditolak
+	assert.Equal(t, 400, code)
+	code, _ = call(r, "PUT", "/posts/9999", gin.H{"title": "Tidak Ada"})
+	assert.Equal(t, 404, code)
+}
+
+func TestMergeUpdate(t *testing.T) {
+	s := func(v string) *string { return &v }
+	yes := true
+	got := mergeUpdate(nil, UpdateRequest{Title: s("T"), Category: s("Bisnis"), Excerpt: s("E"), Content: s("C"), CoverImagePath: s("/c.png"), IsPublished: &yes})
+	assert.Equal(t, PostRequest{Title: "T", Category: "Bisnis", Excerpt: "E", Content: "C", CoverImagePath: "/c.png", IsPublished: true}, got)
 }

@@ -9,7 +9,10 @@ import (
 )
 
 // Kesalahan domain.
-var ErrInvalidCategory = errors.New("kategori tidak valid")
+var (
+	ErrInvalidCategory = errors.New("kategori tidak valid")
+	ErrForbidden       = errors.New("anda tidak berhak mengakses artikel ini")
+)
 
 // WordsPerMinute = kecepatan baca rata-rata untuk estimasi waktu baca.
 const WordsPerMinute = 200
@@ -103,13 +106,37 @@ func normalizeCategory(c string) (string, error) {
 }
 
 func toResponse(p Post) PostResponse {
+	owner := p.UserID
 	return PostResponse{
-		ID: p.ID, Title: p.Title, Slug: p.Slug, Category: p.Category, Excerpt: p.Excerpt,
+		ID: p.ID, UserID: &owner, AuthorName: p.User.Username, Title: p.Title, Slug: p.Slug, Category: p.Category, Excerpt: p.Excerpt,
 		Content: p.Content, CoverImagePath: p.CoverImagePath, IsPublished: p.IsPublished,
 		PublishedAt: p.PublishedAt, ReadingTime: ReadingTime(p.Content),
 		Author:    Author{ID: p.UserID, Username: p.User.Username},
 		CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
 	}
+}
+
+// owned memuat artikel milik userID: 404 bila artikel tidak ada, 403 bila milik orang lain.
+func (s *service) owned(userID, id uint) (*Post, error) {
+	p, err := s.repo.FindOwned(id, userID)
+	if errors.Is(err, ErrNotFound) {
+		exists, xerr := s.repo.PostExists(id)
+		if xerr != nil {
+			return nil, xerr
+		}
+		if exists {
+			return nil, ErrForbidden
+		}
+	}
+	return p, err
+}
+
+// publicResponses menyembunyikan user_id pada respons publik.
+func publicResponses(list []PostResponse) []PostResponse {
+	for i := range list {
+		list[i].UserID = nil
+	}
+	return list
 }
 
 func toResponses(list []Post) []PostResponse {
@@ -135,7 +162,7 @@ func (s *service) Categories() []string { return Categories }
 
 func (s *service) PublicList(q, category string) ([]PostResponse, error) {
 	list, err := s.repo.ListPublic(q, category)
-	return toResponses(list), err
+	return publicResponses(toResponses(list)), err
 }
 
 func (s *service) PublicDetail(slug string) (*PostResponse, error) {
@@ -144,6 +171,7 @@ func (s *service) PublicDetail(slug string) (*PostResponse, error) {
 		return nil, err
 	}
 	r := toResponse(*p)
+	r.UserID = nil
 	return &r, nil
 }
 
@@ -153,7 +181,7 @@ func (s *service) MyList(userID uint) ([]PostResponse, error) {
 }
 
 func (s *service) MyDetail(userID, id uint) (*PostResponse, error) {
-	p, err := s.repo.FindOwned(id, userID)
+	p, err := s.owned(userID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +194,11 @@ func (s *service) Stats(userID uint) (*Stats, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Stats{Total: total, TotalPublished: published, TotalDraft: total - published}, nil
+	draft := total - published
+	return &Stats{
+		Total: total, TotalPublished: published, TotalDraft: draft,
+		TotalArticles: total, TotalSelesai: published, BelumSelesai: draft,
+	}, nil
 }
 
 func (s *service) Create(userID uint, req PostRequest) (*PostResponse, error) {
@@ -190,7 +222,7 @@ func (s *service) Create(userID uint, req PostRequest) (*PostResponse, error) {
 }
 
 func (s *service) Update(userID, id uint, req PostRequest) (*PostResponse, error) {
-	p, err := s.repo.FindOwned(id, userID)
+	p, err := s.owned(userID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +248,7 @@ func (s *service) Update(userID, id uint, req PostRequest) (*PostResponse, error
 }
 
 func (s *service) TogglePublish(userID, id uint) (*PostResponse, error) {
-	p, err := s.repo.FindOwned(id, userID)
+	p, err := s.owned(userID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +261,7 @@ func (s *service) TogglePublish(userID, id uint) (*PostResponse, error) {
 }
 
 func (s *service) Delete(userID, id uint) error {
-	p, err := s.repo.FindOwned(id, userID)
+	p, err := s.owned(userID, id)
 	if err != nil {
 		return err
 	}
@@ -244,13 +276,6 @@ func (s *service) AdminPosts() ([]PostResponse, error) {
 }
 
 func (s *service) AdminUserPosts(userID uint) ([]PostResponse, error) {
-	ok, err := s.repo.UserExists(userID)
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		return nil, ErrNotFound
-	}
 	list, err := s.repo.ListByUser(userID)
 	return toResponses(list), err
 }

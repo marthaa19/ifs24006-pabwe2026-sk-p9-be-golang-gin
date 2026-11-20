@@ -251,7 +251,7 @@ func TestHandlerValidasi(t *testing.T) {
 
 func TestHandlerPemetaanError(t *testing.T) {
 	cases := map[error]int{
-		ErrDuplicate:          409,
+		ErrDuplicate:          400,
 		ErrInvalidCredentials: 401,
 		ErrNotFound:           404,
 		errBoom:               500,
@@ -267,4 +267,34 @@ func TestHandlerPemetaanError(t *testing.T) {
 		code, _ = call(r, "PUT", "/profile", gin.H{"username": "abc", "email": "a@b.id"})
 		assert.Equal(t, want, code)
 	}
+}
+
+func TestRegisterRoleAdminDanUpdateOpsional(t *testing.T) {
+	svc, _, _ := newSvc(t)
+	res, err := svc.Register(RegisterRequest{Username: "root", Email: "root@x.id", Password: "rahasia", Role: " Admin "})
+	assert.NoError(t, err)
+	assert.Equal(t, RoleAdmin, res.User.Role)
+
+	u, err := svc.UpdateProfile(res.User.ID, UpdateProfileRequest{Password: "baru123"})
+	assert.NoError(t, err)
+	assert.Equal(t, "root", u.Username)
+	assert.Equal(t, "root@x.id", u.Email)
+	_, err = svc.Login(LoginRequest{Username: "root", Password: "baru123"})
+	assert.NoError(t, err)
+}
+
+func TestHandlerRegistrasiTidakValid(t *testing.T) {
+	r := router(fakeSvc{}, 1)
+	for _, body := range []gin.H{
+		{"username": "abc", "password": "rahasia"},
+		{"username": "abc", "email": "a@b.id", "password": "12345"},
+		{"username": "abc", "email": "bukan-email", "password": "rahasia"},
+		{"username": "abc", "email": "user@domain", "password": "rahasia"},
+	} {
+		code, b := call(r, "POST", "/register", body)
+		assert.Equal(t, 400, code)
+		assert.Equal(t, "fail", b.Status)
+	}
+	code, _ := call(r, "PUT", "/profile", gin.H{"email": "user@domain"})
+	assert.Equal(t, 400, code)
 }

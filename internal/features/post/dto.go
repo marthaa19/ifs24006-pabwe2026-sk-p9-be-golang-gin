@@ -45,6 +45,8 @@ type Author struct {
 // PostResponse = bentuk artikel yang dikirim ke klien.
 type PostResponse struct {
 	ID             uint       `json:"id"`
+	UserID         *uint      `json:"user_id,omitempty"`
+	AuthorName     string     `json:"author_name"`
 	Title          string     `json:"title"`
 	Slug           string     `json:"slug"`
 	Category       string     `json:"category"`
@@ -64,6 +66,19 @@ type Stats struct {
 	Total          int64 `json:"total"`
 	TotalPublished int64 `json:"total_published"`
 	TotalDraft     int64 `json:"total_draft"`
+	TotalArticles  int64 `json:"total_articles"`
+	TotalSelesai   int64 `json:"total_selesai"`
+	BelumSelesai   int64 `json:"belum_selesai"`
+}
+
+// UpdateRequest = payload PUT/PATCH /api/posts/:id; kolom yang tidak dikirim tidak diubah.
+type UpdateRequest struct {
+	Title          *string `json:"title"`
+	Category       *string `json:"category"`
+	Excerpt        *string `json:"excerpt"`
+	Content        *string `json:"content"`
+	CoverImagePath *string `json:"cover_image_path"`
+	IsPublished    *bool   `json:"is_published"`
 }
 
 // UserSummary = baris direktori pengguna pada panel admin.

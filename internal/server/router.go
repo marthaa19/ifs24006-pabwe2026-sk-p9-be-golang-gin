@@ -79,6 +79,7 @@ func NewRouter(cfg *config.Config, db *gorm.DB, search ai.Searcher, chat ai.Comp
 	p.POST("/ai-generate", aiH.Generate)
 	p.GET("/:id", postH.MyDetail)
 	p.PUT("/:id", postH.Update)
+	p.PATCH("/:id", postH.Update)
 	p.PATCH("/:id/toggle-publish", postH.Toggle)
 	p.DELETE("/:id", postH.Delete)
 

@@ -20,7 +20,7 @@ func NewHandler(svc Service) *Handler { return &Handler{svc: svc} }
 func fromError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrDuplicate):
-		response.Fail(c, http.StatusConflict, err.Error())
+		response.Fail(c, http.StatusBadRequest, err.Error())
 	case errors.Is(err, ErrInvalidCredentials):
 		response.Fail(c, http.StatusUnauthorized, err.Error())
 	case errors.Is(err, ErrNotFound):
@@ -32,8 +32,8 @@ func fromError(c *gin.Context, err error) {
 
 func (h *Handler) Register(c *gin.Context) {
 	var req RegisterRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, http.StatusBadRequest, "Data registrasi tidak valid (username min. 3, email valid, password min. 5)")
+	if err := c.ShouldBindJSON(&req); err != nil || !validEmail(req.Email) {
+		response.Fail(c, http.StatusBadRequest, "Data registrasi tidak valid (username min. 3, email valid, password min. 6)")
 		return
 	}
 	res, err := h.svc.Register(req)
@@ -74,7 +74,7 @@ func (h *Handler) Profile(c *gin.Context) {
 
 func (h *Handler) UpdateProfile(c *gin.Context) {
 	var req UpdateProfileRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil || (req.Email != "" && !validEmail(req.Email)) {
 		response.Fail(c, http.StatusBadRequest, "Data profil tidak valid")
 		return
 	}

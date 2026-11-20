@@ -160,3 +160,31 @@ func itoa(n int) string {
 	b, _ := json.Marshal(n)
 	return string(b)
 }
+
+func TestAdminLewatRegistrasiDanHakMilik(t *testing.T) {
+	r := newTestRouter(t, "development")
+	_, m, _ := do(r, "POST", "/api/auth/register", "", gin.H{"username": "bos", "email": "bos@x.id", "password": "rahasia", "role": "admin"})
+	adm := m["data"].(map[string]any)["token"].(string)
+	code, _, _ := do(r, "GET", "/api/admin/users", adm, nil)
+	assert.Equal(t, 200, code)
+	code, m, _ = do(r, "GET", "/api/admin/users/9999/posts", adm, nil)
+	assert.Equal(t, 200, code)
+	assert.Equal(t, "success", m["status"])
+
+	member := login(t, r, "member", "member")
+	code, m, _ = do(r, "POST", "/api/posts", member, gin.H{"title": "Milik Member", "content": "isi"})
+	assert.Equal(t, 201, code)
+	id := itoa(int(m["data"].(map[string]any)["id"].(float64)))
+	assert.NotNil(t, m["data"].(map[string]any)["user_id"])
+
+	code, _, _ = do(r, "GET", "/api/posts/"+id, adm, nil) // milik orang lain
+	assert.Equal(t, 403, code)
+	code, _, _ = do(r, "PATCH", "/api/posts/"+id, adm, gin.H{"title": "Dibajak"})
+	assert.Equal(t, 403, code)
+	code, _, _ = do(r, "DELETE", "/api/posts/99999999", member, nil)
+	assert.Equal(t, 404, code)
+
+	code, m, _ = do(r, "GET", "/api/posts/stats", member, nil)
+	assert.Equal(t, 200, code)
+	assert.Equal(t, float64(1), m["data"].(map[string]any)["total_articles"])
+}

@@ -11,7 +11,7 @@ import (
 
 // Kesalahan domain AI.
 var (
-	ErrTopicRequired = errors.New("topik artikel wajib diisi")
+	ErrTopicRequired = errors.New("topic artikel wajib diisi")
 	ErrUnavailable   = errors.New("layanan AI sedang tidak tersedia")
 	ErrBadResponse   = errors.New("jawaban AI tidak dapat dibaca")
 )

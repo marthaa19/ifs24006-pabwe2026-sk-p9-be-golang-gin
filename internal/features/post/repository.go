@@ -26,6 +26,7 @@ type Repository interface {
 	Count(userID uint) (total, published int64, err error)
 	ListUsers() ([]UserSummary, error)
 	UserExists(id uint) (bool, error)
+	PostExists(id uint) (bool, error)
 }
 
 type gormRepository struct{ db *gorm.DB }
@@ -118,5 +119,11 @@ func (r *gormRepository) ListUsers() ([]UserSummary, error) {
 func (r *gormRepository) UserExists(id uint) (bool, error) {
 	var n int64
 	err := r.db.Model(&auth.User{}).Where("id = ?", id).Count(&n).Error
+	return n > 0, err
+}
+
+func (r *gormRepository) PostExists(id uint) (bool, error) {
+	var n int64
+	err := r.db.Model(&Post{}).Where("id = ?", id).Count(&n).Error
 	return n > 0, err
 }

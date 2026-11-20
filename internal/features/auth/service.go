@@ -76,7 +76,11 @@ func (s *service) Register(req RegisterRequest) (*AuthResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	u := &User{Username: username, Email: email, Password: hash, Role: RoleMember}
+	role := RoleMember
+	if strings.EqualFold(strings.TrimSpace(req.Role), RoleAdmin) {
+		role = RoleAdmin
+	}
+	u := &User{Username: username, Email: email, Password: hash, Role: role}
 	if err := s.repo.Create(u); err != nil {
 		return nil, err
 	}
@@ -105,7 +109,13 @@ func (s *service) UpdateProfile(id uint, req UpdateProfileRequest) (*User, error
 		return nil, err
 	}
 	username := strings.TrimSpace(req.Username)
+	if username == "" {
+		username = u.Username
+	}
 	email := strings.ToLower(strings.TrimSpace(req.Email))
+	if email == "" {
+		email = u.Email
+	}
 	taken, err := s.repo.Exists(username, email, id)
 	if err != nil {
 		return nil, err

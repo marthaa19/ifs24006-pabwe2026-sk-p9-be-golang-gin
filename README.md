@@ -9,7 +9,7 @@ Search Engine. Dibangun dengan Golang Gin, PostgreSQL 17, GORM, Clean Architectu
 psql -U postgres -c "CREATE DATABASE pabwe_p9_blog;"
 cp .env.example .env        # sesuaikan DB_PASSWORD bila perlu
 go mod tidy                 # mengunduh dependensi & membuat go.sum
-go run cmd/server/main.go
+go run .
 ```
 
 - API aktif di `http://localhost:8081`
@@ -26,8 +26,8 @@ go test -v -cover ./internal/...
 ## Build binary
 
 ```bash
-go build -o server.exe cmd/server/main.go   # Windows
-go build -o server cmd/server/main.go       # Linux/macOS
+go build -o server.exe .   # Windows
+go build -o server .       # Linux/macOS
 ```
 
 `.env` harus berada di folder yang sama saat biner dijalankan.
