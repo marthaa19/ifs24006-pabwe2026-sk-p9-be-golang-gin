@@ -2,8 +2,6 @@
 package server
 
 import (
-	"time"
-	"github.com/gin-contrib/cors"
 	"net/http"
 	"time"
 
@@ -17,7 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"i
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/gorm"
 )
 
@@ -33,17 +31,6 @@ func NewRouter(cfg *config.Config, db *gorm.DB, search ai.Searcher, chat ai.Comp
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r := gin.New()
-	r := gin.New()
-
-r.Use(cors.New(cors.Config{
-    AllowOrigins: []string{
-        "https://ifs24006-pabwe2026-sk-p9-fe-reactjs.vercel.app",
-        "http://localhost:5174",
-    },
-    AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-    AllowHeaders: []string{"Authorization", "Content-Type"},
-    MaxAge:       12 * time.Hour,
-}))
 	_ = r.SetTrustedProxies(nil) // jangan percaya header proxy sembarangan
 	r.Use(gin.Recovery(), middleware.CORS())
 
