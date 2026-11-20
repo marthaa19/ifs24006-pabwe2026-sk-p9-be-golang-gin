@@ -174,6 +174,7 @@ func TestAlurPublikDanAdmin(t *testing.T) {
 	assert.Len(t, users, 2)
 	assert.Equal(t, int64(1), users[0].TotalPosts)
 	assert.Equal(t, int64(2), users[1].TotalPosts)
+	assert.Equal(t, users[1].TotalPosts, users[1].TotalArticles)
 	assert.Equal(t, int64(1), users[1].TotalPublished)
 
 	posts, _ := svc.AdminPosts()
